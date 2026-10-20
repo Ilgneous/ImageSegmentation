@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+data/oxford-iiit-pet/
+data/fake-pet/
+data/*.tar.gz
+runs/
+wandb/
+*.pt
+.ipynb_checkpoints/
+.DS_Store

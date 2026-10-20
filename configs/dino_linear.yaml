@@ -1,0 +1,33 @@
+# Model 5: dino_linear. Comparison: 4 vs 5: task-trained vs frozen self-supervised features
+run_name: dino_linear
+seed: 0
+model:
+  name: dino_linear
+  checkpoint: facebook/dinov3-vits16-pretrain-lvd1689m
+  head: linear
+  pretrained: true
+  freeze: true
+data:
+  root: data/oxford-iiit-pet
+  image_size: 256
+  boundary_mode: ignore
+  val_fraction: 0.1
+  split_seed: 0
+  grayscale_p: 0.0
+  num_workers: 4
+train:
+  epochs: 30
+  batch_size: 16
+  lr: 0.001
+  weight_decay: 0.0001
+  warmup_epochs: 1
+  amp: true
+  grad_clip: 1.0
+loss:
+  dice_weight: 1.0
+  bce_weight: 1.0
+log:
+  backend: tensorboard
+  runs_dir: runs
+  viz_every: 2
+  n_viz: 8

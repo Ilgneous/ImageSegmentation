@@ -1,0 +1,31 @@
+# Model 2: unet_resnet34. Comparison: 1 vs 2: same U-Net, ImageNet encoder
+run_name: unet_resnet34
+seed: 0
+model:
+  name: unet_resnet34
+  encoder: resnet34
+  pretrained: true
+data:
+  root: data/oxford-iiit-pet
+  image_size: 256
+  boundary_mode: ignore
+  val_fraction: 0.1
+  split_seed: 0
+  grayscale_p: 0.0
+  num_workers: 4
+train:
+  epochs: 30
+  batch_size: 16
+  lr: 0.0003
+  weight_decay: 0.0001
+  warmup_epochs: 1
+  amp: true
+  grad_clip: 1.0
+loss:
+  dice_weight: 1.0
+  bce_weight: 1.0
+log:
+  backend: tensorboard
+  runs_dir: runs
+  viz_every: 2
+  n_viz: 8
