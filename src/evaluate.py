@@ -38,7 +38,7 @@ if __package__ in (None, ""):
 
 from . import viz
 from .dataset import OxfordPetSeg, convert_trimap, normalize_image
-from .inference import Predictor, find_checkpoints
+from .inference import Predictor, find_checkpoints, resolve_data_root
 from .metrics import dice_per_image, iou_per_image, pixel_accuracy_per_image
 from .models import count_params
 
@@ -97,7 +97,7 @@ def main(a) -> None:
         pred = Predictor(path, a.device)
         predictors[name] = pred
         dcfg = pred.config["data"]
-        ds = OxfordPetSeg(dcfg["root"] if not a.data_root else a.data_root, split=a.split,
+        ds = OxfordPetSeg(a.data_root or resolve_data_root(dcfg["root"]), split=a.split,
                           image_size=pred.image_size, boundary_mode=dcfg.get("boundary_mode", "ignore"),
                           val_fraction=dcfg.get("val_fraction", 0.1), seed=dcfg.get("split_seed", 0))
         print(f"[{name}] evaluating {len(ds)} {a.split} images ...")

@@ -59,6 +59,18 @@ class Predictor:
             return torch.sigmoid(self.model(x.to(self.device)))[:, 0].float().cpu()
 
 
+def resolve_data_root(stored: str | Path | None) -> str:
+    """The dataset path saved in a checkpoint, or the repo's data/oxford-iiit-pet when that path
+    does not exist here (a model trained on Kaggle stores a Kaggle path)."""
+    if stored and Path(stored).exists():
+        return str(stored)
+    for cand in (Path("data") / "oxford-iiit-pet",
+                 Path(__file__).resolve().parents[1] / "data" / "oxford-iiit-pet"):
+        if (cand / "annotations").exists():
+            return str(cand)
+    return str(stored)
+
+
 def find_checkpoints(runs_dir: str | Path = "runs") -> dict[str, Path]:
     """{run_name: runs/<run_name>/best.pt} for every finished run, in the canonical model order
     (scratch U-Net first, DINOv3 probe last) so tables and grid columns read as the comparison ladder."""

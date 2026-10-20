@@ -18,7 +18,7 @@ import numpy as np
 from predict import load_gt
 from src import viz
 from src.dataset import OxfordPetSeg, convert_trimap
-from src.inference import Predictor, find_checkpoints
+from src.inference import Predictor, find_checkpoints, resolve_data_root
 from src.video import segment_video
 
 ALL = "all models"
@@ -30,7 +30,7 @@ def build_app(runs_dir: str = "runs", device: str | None = None, split: str = "t
         raise SystemExit(f"no trained models in {runs_dir}/")
     try:  # dataset images with ground truth, for the error map
         cfg = next(iter(predictors.values())).config["data"]
-        ds = OxfordPetSeg(cfg["root"], split=split, boundary_mode=cfg.get("boundary_mode", "ignore"),
+        ds = OxfordPetSeg(resolve_data_root(cfg["root"]), split=split, boundary_mode=cfg.get("boundary_mode", "ignore"),
                           val_fraction=cfg.get("val_fraction", 0.1), seed=cfg.get("split_seed", 0))
         sample_names = [r.name for r in ds.records]
     except Exception:
