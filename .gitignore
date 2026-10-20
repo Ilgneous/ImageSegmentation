@@ -9,3 +9,4 @@ wandb/
 *.pt
 .ipynb_checkpoints/
 .DS_Store
+debug/

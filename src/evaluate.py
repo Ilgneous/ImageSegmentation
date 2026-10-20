@@ -23,6 +23,19 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
+if __package__ in (None, ""):
+    # Run as a file (python src/evaluate.py): put the repo root on the path and load the
+    # src package, so the package-relative imports below resolve the same way they do
+    # under python -m src.evaluate.
+    import importlib
+    import sys
+
+    here = str(Path(__file__).resolve().parent)
+    sys.path[:] = [p for p in sys.path if p not in (here, "")]  # src/ itself must not shadow packages
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    importlib.import_module("src")
+    __package__ = "src"
+
 from . import viz
 from .dataset import OxfordPetSeg, convert_trimap, normalize_image
 from .inference import Predictor, find_checkpoints

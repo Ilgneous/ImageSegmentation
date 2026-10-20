@@ -20,6 +20,19 @@ import torch
 import yaml
 from torch.utils.data import DataLoader
 
+if __package__ in (None, ""):
+    # Run as a file (python src/train.py): put the repo root on the path and load the
+    # src package, so the package-relative imports below resolve the same way they do
+    # under python -m src.train.
+    import importlib
+    import sys
+
+    here = str(Path(__file__).resolve().parent)
+    sys.path[:] = [p for p in sys.path if p not in (here, "")]  # src/ itself must not shadow packages
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    importlib.import_module("src")
+    __package__ = "src"
+
 from .dataset import OxfordPetSeg, normalize_image
 from .inference import pick_device
 from .losses import DiceBCELoss

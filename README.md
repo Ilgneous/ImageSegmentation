@@ -39,6 +39,7 @@ REPORT.md  AI_USAGE.md  REFERENCES.md
 ```bash
 pip install -r requirements.txt
 python data/download.py                      # data/oxford-iiit-pet/
+python scripts/sanity_check.py --scan       # sample figures to debug/, checks every image
 pytest -q                                    # ~10 s, no GPU or dataset needed
 
 python -m src.train --config configs/unet_scratch.yaml
@@ -80,6 +81,14 @@ python -m src.evaluate --split val
 | Dice vs latency | `plot_efficiency(summary)` |
 | TensorBoard / W&B scalars + 8 fixed val overlays | `TrainingLogger` (used by `train.py`) |
 | Training curves for the report | `plot_training_curves({name: history.jsonl})` |
+
+Render every view the available inputs allow (data checks always, predictions once a model is
+trained, evaluation charts once `src.evaluate` has run) into one HTML page:
+
+```bash
+python src/viz.py --open                     # writes debug/gallery/index.html
+python src/viz.py --root data/fake-pet --n 6
+```
 
 Image renderers return uint8 RGB arrays, figure builders return matplotlib figures:
 

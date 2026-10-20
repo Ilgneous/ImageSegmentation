@@ -31,6 +31,19 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 from scipy.ndimage import distance_transform_edt
 
+if __package__ in (None, ""):
+    # Run as a file (python src/viz.py): put the repo root on the path and load the
+    # src package, so the package-relative imports below resolve the same way they do
+    # under python -m src.viz.
+    import importlib
+    import sys
+
+    here = str(Path(__file__).resolve().parent)
+    sys.path[:] = [p for p in sys.path if p not in (here, "")]  # src/ itself must not shadow packages
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    importlib.import_module("src")
+    __package__ = "src"
+
 from .dataset import IGNORE_INDEX, OxfordPetSeg, convert_trimap, get_transforms
 
 # --------------------------------------------------------------------------- colors and style
@@ -827,3 +840,177 @@ def plot_training_curves(histories: str | Path | Mapping[str, str | Path]) -> Fi
         ax2.legend(fontsize=8, loc="lower right")
         fig.tight_layout()
     return fig
+
+
+# --------------------------------------------------------------------------- gallery (python src/viz.py)
+_GALLERY_CSS = """
+:root { --bg:#f6f5f2; --card:#fff; --ink:#151514; --ink2:#5d5c58; --line:#e4e2dc; --accent:#ff4081; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#141413; --card:#1f1f1d; --ink:#f0efec; --ink2:#a9a8a1; --line:#2e2e2b; }
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink);
+       font:15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
+header { padding:40px 24px 16px; max-width:1200px; margin:auto; }
+header h1 { margin:0; font-size:28px; letter-spacing:-0.02em; }
+header h1 span { color:var(--accent); }
+header p { margin:6px 0 0; color:var(--ink2); }
+nav { position:sticky; top:0; z-index:2; background:var(--bg); border-bottom:1px solid var(--line); }
+nav div { max-width:1200px; margin:auto; padding:10px 24px; display:flex; gap:18px; flex-wrap:wrap; }
+nav a { color:var(--ink2); text-decoration:none; font-weight:600; font-size:14px; margin-right:6px; }
+nav a:hover { color:var(--accent); }
+main { max-width:1200px; margin:auto; padding:8px 24px 64px; }
+section { margin-top:36px; }
+section h2 { font-size:20px; margin:0 0 4px; }
+section > p { margin:0 0 14px; color:var(--ink2); max-width:780px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px;
+        margin-bottom:14px; }
+.card h3 { margin:2px 4px 8px; font-size:14px; font-weight:600; color:var(--ink2); }
+.card img { width:100%; display:block; border-radius:6px; background:#fcfcfb; cursor:zoom-in; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(520px, 1fr)); gap:14px; }
+.grid .card { margin:0; }
+.empty { color:var(--ink2); font-style:italic; }
+dialog { border:none; padding:0; background:transparent; max-width:96vw; }
+dialog img { max-width:96vw; max-height:92vh; border-radius:8px; background:#fcfcfb; }
+dialog::backdrop { background:rgba(0,0,0,.78); }
+@media (max-width:600px) { .grid { grid-template-columns:1fr; } header { padding-top:24px; } }
+"""
+
+_GALLERY_JS = """
+const d = document.querySelector('dialog'), big = d.querySelector('img');
+document.querySelectorAll('.card img').forEach(i => i.addEventListener('click', () => {
+  big.src = i.src; d.showModal(); }));
+d.addEventListener('click', () => d.close());
+"""
+
+
+def build_gallery(root: str | Path, out: str | Path, split: str = "train", n: int = 4,
+                  runs_dir: str | Path = "runs", results_dir: str | Path = "results",
+                  eval_split: str = "val", seed: int = 0) -> Path:
+    """Renders every view that the available inputs allow into <out>/ and writes an index.html.
+
+    Always: show_sample and show_augmented for n images.
+    With trained runs (runs/*/best.pt): show_prediction per model and model grids.
+    With evaluation output (results/<eval_split>/): the evaluation and training charts."""
+    import html
+    import random
+
+    out = Path(out)
+    img_dir = out / "img"
+    img_dir.mkdir(parents=True, exist_ok=True)
+    sections: list[tuple[str, str, str, list[tuple[str, str]], bool]] = []
+
+    def emit(fig: Figure, name: str) -> str:
+        save_figure(fig, img_dir / name)
+        return f"img/{name}"
+
+    ds = OxfordPetSeg(root, split=split)
+    idxs = random.Random(seed).sample(range(len(ds)), min(n, len(ds)))
+    print(f"[gallery] data sanity views for {len(idxs)} {split} images")
+    cards = []
+    for i in idxs:
+        nm = ds.records[i].name
+        cards.append((f"{nm}: image, raw trimap, converted mask", emit(show_sample(ds, i), f"sample_{nm}.png")))
+        cards.append((f"{nm}: augmentation passes", emit(show_augmented(ds, i, n=8), f"augmented_{nm}.png")))
+    sections.append(("data", "Data sanity checks",
+                     "The converted mask must sit exactly on the pet, and the outline must stay on the pet "
+                     "through every augmentation pass. Gray marks ignored boundary and padding pixels.", cards, False))
+
+    from .inference import find_checkpoints  # local import: inference imports this module
+
+    ckpts = find_checkpoints(runs_dir)
+    cards = []
+    if ckpts:
+        from .inference import Predictor
+
+        preds = {nm: Predictor(p) for nm, p in ckpts.items()}
+        print(f"[gallery] predictions from {', '.join(preds)}")
+        images, gts, labels = [], [], []
+        for i in idxs:
+            img, tri = ds.load_raw(i)
+            images.append(img)
+            gts.append(convert_trimap(tri, ds.boundary_mode))
+            labels.append(ds.records[i].name)
+        probs = {nm: [p.predict(im) for im in images] for nm, p in preds.items()}
+        for view, title in (("overlay", "Model grid: overlays"), ("error", "Model grid: error maps")):
+            cards.append((title, emit(model_grid(images, gts, probs, view=view, row_labels=labels),
+                                      f"model_grid_{view}.png")))
+        for nm in preds:
+            cards.append((f"{nm}: {labels[0]}", emit(show_prediction(images[0], probs[nm][0], gts[0], title=nm),
+                                                       f"prediction_{nm}.png")))
+    sections.append(("predictions", "Predictions",
+                     "Error map colors: green true positive, red false positive, blue false negative, "
+                     "gray ignored boundary. Numbers in the grid are per-image Dice.", cards, False))
+
+    res = Path(results_dir) / eval_split
+    names = ("training_curves.png", "threshold_sweep.png", "boundary.png", "per_breed.png", "efficiency.png",
+             "worst_k.png")
+    cards = []
+    if res.exists():
+        import shutil
+
+        for f in names:
+            for src in [res / f, *sorted(res.glob(f"*/{f}"))]:
+                if src.exists():
+                    label = f"{src.parent.name if src.parent != res else 'all models'}: {src.stem.replace('_', ' ')}"
+                    dst = img_dir / f"eval_{src.parent.name}_{f}"
+                    shutil.copy(src, dst)
+                    cards.append((label, f"img/{dst.name}"))
+    sections.append(("evaluation", f"Evaluation ({eval_split})",
+                     "Training curves, threshold sweep, boundary vs interior error, per-breed Dice, "
+                     "quality vs cost, and each model's worst images.", cards, True))
+
+    def section_html(sid, title, blurb, cards, grid):
+        if not cards:
+            hint = {"predictions": "No trained models yet. Train one with python -m src.train --config configs/unet_scratch.yaml.",
+                    "evaluation": f"No evaluation output yet. Run python -m src.evaluate --split {eval_split}."}[sid]
+            body = f'<p class="empty">{html.escape(hint)}</p>'
+        else:
+            items = "".join(f'<div class="card"><h3>{html.escape(t)}</h3><img src="{s}" loading="lazy" '
+                            f'alt="{html.escape(t)}"></div>' for t, s in cards)
+            body = f'<div class="grid">{items}</div>' if grid else items
+        return f'<section id="{sid}"><h2>{title}</h2><p>{html.escape(blurb)}</p>{body}</section>'
+
+    nav = "".join(f'<a href="#{s[0]}">{s[1]}</a>' for s in sections)
+    page = (f'<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            f'<meta name="viewport" content="width=device-width, initial-scale=1"><title>Pet segmentation: views</title>'
+            f'<style>{_GALLERY_CSS}</style></head><body>'
+            f'<header><h1>Pet segmentation <span>views</span></h1>'
+            f'<p>{len(ds)} {split} images from {html.escape(str(root))} · {len(ckpts)} trained model(s)</p></header>'
+            f'<nav><div>{nav}</div></nav><main>{"".join(section_html(*s) for s in sections)}</main>'
+            f'<dialog><img alt=""></dialog><script>{_GALLERY_JS}</script></body></html>')
+    index = out / "index.html"
+    index.write_text(page)
+    return index
+
+
+def _main() -> None:
+    import argparse
+
+    repo = Path(__file__).resolve().parents[1]
+    ap = argparse.ArgumentParser(description="Render every visualization view into an HTML gallery.")
+    ap.add_argument("--root", default=str(repo / "data" / "oxford-iiit-pet"), help="dataset folder")
+    ap.add_argument("--split", default="train", choices=["train", "val", "test"])
+    ap.add_argument("--n", type=int, default=4, help="images to show")
+    ap.add_argument("--runs-dir", default=str(repo / "runs"))
+    ap.add_argument("--results-dir", default=str(repo / "results"))
+    ap.add_argument("--eval-split", default="val")
+    ap.add_argument("--out", default=str(repo / "debug" / "gallery"))
+    ap.add_argument("--open", action="store_true", help="open the gallery in your browser")
+    a = ap.parse_args()
+
+    if not (Path(a.root) / "annotations" / "trimaps").is_dir():
+        raise SystemExit(f"No dataset at {a.root}.\nDownload it with: python data/download.py\n"
+                         f"or try the synthetic one: python scripts/make_fake_dataset.py --out data/fake-pet "
+                         f"&& python src/viz.py --root data/fake-pet")
+    plt.switch_backend("Agg")
+    index = build_gallery(a.root, a.out, a.split, a.n, a.runs_dir, a.results_dir, a.eval_split)
+    print(f"[gallery] open {index}")
+    if a.open:
+        import webbrowser
+
+        webbrowser.open(index.resolve().as_uri())
+
+
+if __name__ == "__main__":
+    _main()
