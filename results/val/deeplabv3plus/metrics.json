@@ -1,0 +1,16 @@
+{
+  "dice": 0.9804639511799867,
+  "dice_median": 0.9958877563476562,
+  "iou": 0.9673010385052742,
+  "pixel_acc": 0.9891766253202589,
+  "best_threshold": 0.78,
+  "dice_at_best_threshold": 0.981118954382486,
+  "n_images": 369,
+  "boundary_band_px": 3,
+  "boundary_error_share_near": 0.30388174752758307,
+  "boundary_pixel_share_near": 0.07497604855424804,
+  "boundary_error_rate_near": 0.04450962365211177,
+  "boundary_error_rate_interior": 0.008264220541458122,
+  "latency_ms": 108.52063389902469,
+  "params_m": 26.677585
+}

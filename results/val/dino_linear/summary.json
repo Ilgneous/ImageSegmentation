@@ -1,0 +1,7 @@
+{
+  "run_name": "dino_linear",
+  "best_val_dice": 0.9831912826070414,
+  "best_epoch": 25,
+  "params": 21597697,
+  "trainable_params": 1153
+}
